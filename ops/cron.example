@@ -1,0 +1,5 @@
+# While using the legacy host scripts (see legacy/host/): every 10 minutes
+*/10 * * * * TVH_STACK_DIR=/opt/tvh-freeview-stack /opt/tvh-freeview-stack/legacy/host/tvh-nfo-sync.sh
+*/10 * * * * TVH_STACK_DIR=/opt/tvh-freeview-stack /opt/tvh-freeview-stack/legacy/host/tvh-comskip-sync.sh
+# Nightly Tvheadend config backup
+30 4 * * * TVH_CONFIG_DIR=/srv/tvheadend/config DEST=/mnt/backup/tvheadend /opt/tvh-freeview-stack/ops/backup-tvheadend-config.sh

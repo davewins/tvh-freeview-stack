@@ -1,0 +1,17 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the pipeline image
+        run: docker build -t tvh-pipeline pipeline/
+      - name: Run the tests (including a full pass with real ffmpeg)
+        run: docker run --rm --entrypoint python3 tvh-pipeline -W ignore -m unittest discover -s /opt/tvh-pipeline/tests -t /opt/tvh-pipeline
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose file is valid
+        run: cp .env.example .env && docker compose --profile pipeline config -q

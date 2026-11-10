@@ -1,0 +1,95 @@
+# Freeview recording stack: Tvheadend (records), tvhgo (web interface + player), tvh-pipeline (converts recordings and
+# prepares them for Jellyfin). Jellyfin itself is not part of this file (see docs/jellyfin.md).
+#
+#   cp .env.example .env && edit .env
+#   docker compose up -d
+#
+# The DVB tuner device is passed through to Tvheadend. If you have none (testing), remove the "devices:" lines.
+
+services:
+  tvheadend:
+    image: lscr.io/linuxserver/tvheadend:latest
+    container_name: tvheadend
+    restart: unless-stopped
+    network_mode: bridge
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-Europe/London}
+    devices:
+      - /dev/dvb:/dev/dvb
+    ports:
+      - "${LISTEN_IP}:9981:9981"   # web interface
+      - "${LISTEN_IP}:9982:9982"   # HTSP
+    volumes:
+      - ${TVH_CONFIG_DIR}:/config
+      - ${RECORDINGS_DIR}:/recordings
+
+  tvhgo:
+    # The davewins/tvhgo-player fork: https://github.com/davewins/tvhgo-player (build instructions in its README)
+    image: ${TVHGO_IMAGE:-tvhgo-player:latest}
+    pull_policy: never
+    container_name: tvhgo
+    restart: unless-stopped
+    network_mode: bridge
+    ports:
+      - "${LISTEN_IP}:8097:8080"
+    environment:
+      - TVHGO_TVHEADEND_SCHEME=http
+      - TVHGO_TVHEADEND_HOST=${TVH_HOST}
+      - TVHGO_TVHEADEND_PORT=9981
+      - TVHGO_TVHEADEND_USERNAME=${TVHGO_TVH_USERNAME:-tvhgo}
+      - TVHGO_TVHEADEND_PASSWORD=${TVHGO_TVH_PASSWORD}
+      # Optional: a second, admin-level Tvheadend account used ONLY to read tuner status (header "Tuners in use" badge,
+      # recording-clash warnings). Leave empty to switch those features off. See docs/tvheadend.md.
+      - TVHGO_TVHEADEND_STATUS_USERNAME=${TVHGO_STATUS_USERNAME:-}
+      - TVHGO_TVHEADEND_STATUS_PASSWORD=${TVHGO_STATUS_PASSWORD:-}
+      - TVHGO_SERVER_PORT=8080
+      - TVHGO_DATABASE_PATH=/tvhgo/tvhgo.db
+      - TVHGO_LOG_LEVEL=info
+      - TVHGO_PLAYBACK_TVHEADEND_ROOT=/recordings
+      - TVHGO_PLAYBACK_RECORDINGS_DIR=/recordings
+      - TVHGO_PLAYBACK_SOURCE_DIR=/recordings/_jellyfin
+      - TVHGO_PLAYBACK_CONVERT=true
+      - TVHGO_PLAYBACK_CACHE_DIR=/tvhgo/cache
+      - TVHGO_PLAYBACK_CACHE_MAX_GB=50
+      - TVHGO_PLAYBACK_MAX_JOBS=1
+      # progress of the background pipeline (badge, chips on recordings): the pipeline writes this file
+      - TVHGO_PLAYBACK_PIPELINE_STATUS=/pipeline-state/status.json
+      - TVHGO_PLAYBACK_TMDB_API_KEY=${TVHGO_TMDB_KEY:-}
+      - TVHGO_PLAYBACK_TMDB_LANGUAGE=en-GB
+      - TVHGO_PLAYBACK_LIVE_TRANSCODE=true
+      - TVHGO_PLAYBACK_LIVE_QUALITIES=1080,720,480,360
+      - TVHGO_PLAYBACK_LIVE_MAX_STREAMS=3
+      - TZ=${TZ:-Europe/London}
+    volumes:
+      - ${TVHGO_DATA_DIR}:/tvhgo
+      - ${RECORDINGS_DIR}:/recordings:ro
+      - tvh-pipeline-state:/pipeline-state:ro
+
+  # The recording pipeline. Disabled until you opt in: `docker compose --profile pipeline up -d`.
+  # While the Tvheadend post-processor scripts (legacy/) are still in use, run it in shadow mode (docs/pipeline.md).
+  tvh-pipeline:
+    profiles: ["pipeline"]
+    build: ./pipeline
+    image: tvh-pipeline:latest
+    container_name: tvh-pipeline
+    restart: unless-stopped
+    network_mode: bridge
+    user: "1000:1000"
+    # No CPU cap on purpose: video encoding scales with cores (capped to 2 cores it ran ~10x slower than real time
+    # allows for long recordings). ffmpeg already runs at low priority (nice 10), so everything else takes precedence.
+    # Add `cpus: 4` if you share the machine with something that must never be slowed.
+    mem_limit: 4g
+    environment:
+      - TZ=${TZ:-Europe/London}
+      - TVH_URL=http://${TVH_HOST}:9981
+      - TVH_USER=${PIPELINE_TVH_USERNAME:-pipeline}
+      - TVH_PASS=${PIPELINE_TVH_PASSWORD}
+    volumes:
+      - ${RECORDINGS_DIR}:/recordings
+      - ./pipeline/config.toml:/etc/tvh-pipeline/config.toml:ro
+      - tvh-pipeline-state:/var/lib/tvh-pipeline
+
+volumes:
+  tvh-pipeline-state:

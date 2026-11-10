@@ -1,0 +1,13 @@
+.env
+pipeline/config.toml
+__pycache__/
+*.pyc
+*.log
+state.json
+state.db
+
+# tvheadend/export-config.sh writes your own channel list, series rules and login networks here: keep them private.
+# Only the DVR profile is shared, as a worked example.
+tvheadend/config-snapshot/*
+!tvheadend/config-snapshot/dvr-config.json
+!tvheadend/config-snapshot/README.md

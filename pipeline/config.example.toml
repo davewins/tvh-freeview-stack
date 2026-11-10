@@ -1,0 +1,36 @@
+# tvh-pipeline configuration. Copy to config.toml (next to docker-compose.yml). Every value shown is the default.
+# The Tvheadend address and the logins come from the environment (.env), so passwords never sit in this file.
+
+[paths]
+# The recordings folder as Tvheadend names it in its API (its own mount) ...
+tvheadend_root = "/recordings"
+# ... and where this container sees the same folder (the compose file mounts it at /recordings too)
+recordings = "/recordings"
+# Where the Jellyfin-friendly copies go. Point a Jellyfin "Shows" library here.
+library = "/recordings/_jellyfin"
+state_dir = "/var/lib/tvh-pipeline"
+
+[run]
+poll_seconds = 60        # how often Tvheadend is asked for finished recordings
+settle_seconds = 120     # a recording must have been untouched this long before it is processed
+max_attempts = 5         # a failing step is retried with growing pauses (5 min, 10, 20 ...) then left, visible in `status`
+
+[steps]
+strip_audio_description = true   # remove audio-description tracks from the recording itself (stream copy, verified)
+convert_mp4 = true               # H.264/AAC MP4 with a keyframe every 2 s, so seeking works everywhere
+thumbnail = true                 # "<name>-thumb.jpg" next to each MP4
+nfo = true                       # Jellyfin .nfo files (programme + episode)
+comskip = true                   # find the advert breaks and write them into the MP4 as "Commercial" chapters
+cleanup = true                   # remove library files whose recording has been deleted
+series_images = false            # give programmes with no picture one of their own thumbnails (needs [jellyfin])
+
+[comskip]
+skip_channels_regex = '^\s*BBC\b'   # channels without adverts are not analysed
+# since_epoch = 1762790400           # only analyse recordings that finished after this time (seconds since 1970)
+
+# [jellyfin]            # only for series_images; the API key goes in the JELLYFIN_API_KEY environment variable
+# url = "http://jellyfin:8096"
+# library_id = ""
+# user_id = ""
+# path_prefix = "/media/recordings/"   # the library path as Jellyfin sees it ...
+# host_path_prefix = "/recordings/"    # ... and as this container sees it
