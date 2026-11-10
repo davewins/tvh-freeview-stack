@@ -34,6 +34,12 @@ services:
     network_mode: bridge
     ports:
       - "${LISTEN_IP}:8097:8080"
+    # For GPU live encoding (TVHGO_LIVE_ENCODER=vaapi): pass the render node in and join the host's 'render' group
+    # (find its id with: getent group render)
+    # devices:
+    #   - /dev/dri/renderD128:/dev/dri/renderD128
+    # group_add:
+    #   - "990"
     environment:
       - TVHGO_TVHEADEND_SCHEME=http
       - TVHGO_TVHEADEND_HOST=${TVH_HOST}
@@ -61,6 +67,8 @@ services:
       - TVHGO_PLAYBACK_LIVE_TRANSCODE=true
       - TVHGO_PLAYBACK_LIVE_QUALITIES=1080,720,480,360
       - TVHGO_PLAYBACK_LIVE_MAX_STREAMS=3
+      # GPU encoding of live TV (about 5x less CPU): set to vaapi, and uncomment devices/group_add below (docs/tvhgo.md)
+      - TVHGO_PLAYBACK_LIVE_ENCODER=${TVHGO_LIVE_ENCODER:-cpu}
       - TZ=${TZ:-Europe/London}
     volumes:
       - ${TVHGO_DATA_DIR}:/tvhgo
