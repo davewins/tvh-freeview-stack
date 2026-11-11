@@ -12,7 +12,7 @@ database of what has been done.
 | `thumbnail` | `<name>-thumb.jpg` from a frame 15% in | `ok` / `exists` |
 | `comskip` | Find advert breaks, write them into the MP4 as chapters: **Commercial** for each break (including the lead-in at the start), **Part N** for the programme. Checked (same duration, streams, size within 1%, chapter count) before the file is replaced. BBC channels are skipped; a result where almost half the recording is "adverts" is refused | `ok` / `nobreaks` / `skipped` / `suspicious` |
 | *(each pass)* `nfo` | Write `tvshow.nfo` per programme folder and an episode `.nfo` per recording | n/a |
-| *(each pass)* `cleanup` | Remove library files whose master recording was deleted | n/a |
+| *(each pass)* `cleanup` | Remove library files whose master recording was deleted, except MP4s with a `.keep` marker (see below) | n/a |
 | *(each pass, optional)* `series_images` | Give a Jellyfin programme with no picture one of its own thumbnails | n/a |
 
 A step that fails is retried after 5 minutes, then 10, 20, ... up to 6 hours, five times, then left. `docker exec
@@ -94,3 +94,11 @@ docker run --rm --entrypoint python3 tvh-pipeline -W ignore -m unittest discover
 ```
 The tests include a full pass against a fake Tvheadend using real ffmpeg on a synthetic recording that has an
 audio-description track.
+
+## Keeping an MP4 after its recording is deleted
+
+Normally deleting a recording (in tvhgo or Tvheadend) makes `cleanup` remove its MP4, thumbnail and NFO from the library.
+tvhgo's **Delete → "Keep the MP4 copy"** writes an empty marker file `<name>.keep` next to the MP4 first, then deletes
+the original. `cleanup` never removes an MP4 that has a `.keep` marker, nor its thumbnail/NFO/folder image. To drop a kept
+copy later, delete the MP4 (and the `.keep` file) from the library folder yourself. tvhgo needs the library folder
+mounted read-write for this (see `docker-compose.yml`).

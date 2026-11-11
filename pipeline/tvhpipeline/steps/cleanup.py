@@ -1,10 +1,15 @@
 """Tidy the library: remove what belongs to recordings that no longer exist (Tvheadend's retention deleted the master).
 
 Safety: it only ever deletes inside the library folder, only ever deletes known kinds of file, never touches work-in-
-progress files (.part/.tmp), and does nothing at all if the recordings folder looks empty or unmounted."""
+progress files (.part/.tmp), and does nothing at all if the recordings folder looks empty or unmounted.
+
+An MP4 with a "<name>.keep" marker next to it is deliberately kept after its recording was deleted (tvhgo's "delete,
+keep the MP4 copy"): it, and the thumbnail / NFO / folder image that go with it, are left alone."""
 import os
 
 from .. import paths
+
+KEEP_SUFFIX = ".keep"
 
 
 def recordings_look_mounted(cfg) -> bool:
@@ -35,6 +40,8 @@ def run(cfg, dry_run: bool = False):
             if fn.endswith(paths.TEMP_SUFFIXES) or not fn.endswith(".mp4"):
                 continue
             p = os.path.join(root, fn)
+            if os.path.exists(p[: -len(".mp4")] + KEEP_SUFFIX):
+                continue
             if not os.path.exists(paths.ts_for_mp4(cfg, p)) and not os.path.exists(p + ".part"):
                 remove(p, "mp4")
     # thumbnails, episode NFOs whose MP4 is gone; folder.jpg in a folder with no MP4 left

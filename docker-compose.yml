@@ -73,6 +73,8 @@ services:
     volumes:
       - ${TVHGO_DATA_DIR}:/tvhgo
       - ${RECORDINGS_DIR}:/recordings:ro
+      # the library is writable: "delete, keep the MP4 copy" leaves a .keep marker there (see docs/pipeline.md)
+      - ${RECORDINGS_DIR}/_jellyfin:/recordings/_jellyfin
       - tvh-pipeline-state:/pipeline-state:ro
 
   # The recording pipeline. Disabled until you opt in: `docker compose --profile pipeline up -d`.

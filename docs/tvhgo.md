@@ -42,6 +42,7 @@ recording, tvhgo shows its progress instead of starting a second conversion.
 | --- | --- |
 | `TVHGO_TVHEADEND_*` | Where Tvheadend is and the (non-admin) account tvhgo uses |
 | `TVHGO_TVHEADEND_STATUS_USERNAME` / `_PASSWORD` | Optional admin-level account used only for the tuner features; empty switches them off ([tvheadend.md](tvheadend.md)) |
+| *(mount)* `/recordings/_jellyfin` | Mounted read-write on top of the read-only recordings mount, so "Delete, keep the MP4 copy" can write its `.keep` marker |
 | `TVHGO_PLAYBACK_SOURCE_DIR` | The pipeline's library, `/recordings/_jellyfin` |
 | `TVHGO_PLAYBACK_PIPELINE_STATUS` | Path of the pipeline's `status.json` (the state volume mounted read-only) |
 | `TVHGO_PLAYBACK_TMDB_API_KEY`, `_TMDB_LANGUAGE` | Artwork from TMDb; empty key = no artwork lookup |

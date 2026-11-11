@@ -69,6 +69,19 @@ class CleanupTests(unittest.TestCase):
         self.assertEqual((out["mp4"], out["thumb"], out["nfo"], out["folder_jpg"]), (1, 1, 1, 1))
         self.assertFalse(os.path.exists(os.path.join(self.cfg.library, "Gone")) and os.listdir(os.path.join(self.cfg.library, "Gone")) != ["tvshow.nfo"])
 
+    def test_keeps_an_mp4_marked_to_keep_after_its_recording_is_deleted(self):
+        self.touch(os.path.join(self.root, "Other", "keep.ts"))          # proves the recordings folder is mounted
+        for ext in (".mp4", "-thumb.jpg", ".nfo", ".keep"):
+            self.touch(self.lib("Kept", "ep", ext))
+        self.touch(self.lib("Kept", "folder", ".jpg"))
+        for ext in (".mp4", "-thumb.jpg", ".nfo"):                       # a neighbour that is NOT marked
+            self.touch(self.lib("Kept", "other", ext))
+        out = cleanup.run(self.cfg)
+        self.assertEqual((out["mp4"], out["thumb"], out["nfo"], out["folder_jpg"]), (1, 1, 1, 0))
+        for ext in (".mp4", "-thumb.jpg", ".nfo", ".keep"):
+            self.assertTrue(os.path.exists(self.lib("Kept", "ep", ext)), ext)
+        self.assertFalse(os.path.exists(self.lib("Kept", "other", ".mp4")))
+
     def test_never_touches_work_in_progress_files(self):
         self.touch(os.path.join(self.root, "Other", "keep.ts"))
         part = self.touch(self.lib("Show", "ep", ".mp4.part"))
