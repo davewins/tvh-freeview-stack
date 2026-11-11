@@ -98,7 +98,8 @@ audio-description track.
 ## Keeping an MP4 after its recording is deleted
 
 Normally deleting a recording (in tvhgo or Tvheadend) makes `cleanup` remove its MP4, thumbnail and NFO from the library.
-tvhgo's **Delete → "Keep the MP4 copy"** writes an empty marker file `<name>.keep` next to the MP4 first, then deletes
-the original. `cleanup` never removes an MP4 that has a `.keep` marker, nor its thumbnail/NFO/folder image. To drop a kept
-copy later, delete the MP4 (and the `.keep` file) from the library folder yourself. tvhgo needs the library folder
+tvhgo's **Delete → "Keep the MP4 copy"** writes a marker file `<name>.keep` next to the MP4 first (it holds the
+recording's details as JSON, so tvhgo can keep listing it), then deletes the original. `cleanup` never removes an MP4 that has a `.keep` marker, nor its thumbnail/NFO/folder image. To drop a kept
+copy later, delete it in tvhgo (it stays listed there, marked *Kept*), or delete the MP4 and its `.keep` file from the library
+folder yourself. tvhgo needs the library folder
 mounted read-write for this (see `docker-compose.yml`).
