@@ -78,6 +78,12 @@ compose file as a backup, and check `docker logs` and the `status` output afterw
   entries have no file and are ignored.
 - DVB-T2 (HD) reception can be marginal and appear as "locked but all packets uncorrectable": suspect RF/USB (a
   splitter, a powered hub and a longer extension fixed one install), not firmware.
+- **Two tuners on one USB 2.0 stick can corrupt each other.** On a Hauppauge dualHD, an HD (DVB-T2) recording was clean
+  alone (0-10 errors per 30 s) but took ~10,000 errors per 30 s whenever anything streamed on the other tuner; two SD
+  muxes together were clean. Another busy USB 2.0 device on the same controller (an RTL-SDR ADS-B stick) made it about
+  three times worse. Measure with two `curl` streams on `/stream/channelnumber/N?profile=pass` and the `te`/`cc` counters
+  of `/api/status/inputs`. Fixes: give the tuner its own USB controller (a PCIe USB card) or move other USB 2.0 devices
+  away; avoid live viewing while an HD recording runs.
 - Some USB tuners need firmware that the distribution's `linux-firmware` does not ship (e.g. Si2168 `b40` for the
   Hauppauge dualHD): install it to `/usr/lib/firmware`, replug, then restart the Tvheadend container.
 - Audio-description tracks can be picked by players by mistake, which is why the pipeline strips them.
