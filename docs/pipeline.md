@@ -63,7 +63,9 @@ A conversion can run for a long time, so the container's health signal ticks fro
   move the recording to *Failed* even though most of the programme is in the file. With `process_damaged = true` (the
   default) the pipeline converts these too (only when the file has content, so "Time missed" entries are ignored); how bad
   the picture is varies from a few glitches to a mess. tvhgo shows the reason on the recording and a warning under the
-  player. Turn it off with `process_damaged = false` under `[run]`.
+  player. Because damaged data is lost, such an MP4 can be shorter than the recording's container claims; for these the length check
+  accepts an MP4 that keeps at least 80 % of the source (every other recording must match within 2 %). Turn it off with
+  `process_damaged = false` under `[run]`.
 
 ## Configuration
 Copy `pipeline/config.example.toml` to `pipeline/config.toml`; every value shown is the default, so the file is optional.
