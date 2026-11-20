@@ -61,7 +61,7 @@ A conversion can run for a long time, so the container's health signal ticks fro
 
 - **Recordings Tvheadend marked failed for "Too many data errors".** Poor reception while recording makes Tvheadend
   move the recording to *Failed* even though most of the programme is in the file. With `process_damaged = true` (the
-  default) the pipeline converts these too (only when the file has content, so "Time missed" entries are ignored); how bad
+  default) the pipeline converts these too (only when the file has content, so "Time missed" entries are ignored; one you moved to Finished by hand reads "Forced OK" but still counts as damaged if it has 1000 or more data errors); how bad
   the picture is varies from a few glitches to a mess. tvhgo shows the reason on the recording and a warning under the
   player. Because damaged data is lost, such an MP4 can be shorter than the recording's container claims; for these the length check
   accepts an MP4 that keeps at least 80 % of the source (every other recording must match within 2 %). Turn it off with

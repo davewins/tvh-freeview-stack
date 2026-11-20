@@ -8,6 +8,7 @@ from . import paths, status as live_status
 from .config import Config
 from .state import State
 from .steps import cleanup, comskip, nfo, series_images, strip_ad, thumb, to_mp4
+from . import tvheadend
 from .tvheadend import Tvheadend
 
 log = logging.getLogger("tvhpipeline")
@@ -93,7 +94,7 @@ def process_recording(cfg: Config, state: State, entry: dict, now: float) -> boo
     if cfg.strip_audio_description:
         worked |= did(_attempt(state, cfg, rec, "strip_ad", lambda: strip_ad.run(cfg, ts), label, title))
     if cfg.convert_mp4:
-        worked |= did(_attempt(state, cfg, rec, "convert_mp4", lambda: to_mp4.run(cfg, ts, out, damaged="data errors" in (entry.get("status") or "").lower()), label, title))
+        worked |= did(_attempt(state, cfg, rec, "convert_mp4", lambda: to_mp4.run(cfg, ts, out, damaged=tvheadend.is_damaged(entry)), label, title))
     mp4_ready = os.path.exists(out) and os.path.getsize(out) > 0
     if cfg.thumbnail and mp4_ready:
         worked |= did(_attempt(state, cfg, rec, "thumbnail", lambda: thumb.run(cfg, out), label, title))

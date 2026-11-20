@@ -32,3 +32,12 @@ class Tvheadend:
             if e.get("uuid") not in seen and (e.get("filesize") or 0) > 0 and "data errors" in (e.get("status") or "").lower():
                 entries.append(e)
         return entries
+
+
+DAMAGED_ERRORS = 1000  # a few hundred damaged packets is normal and invisible; thousands show as glitches
+
+
+def is_damaged(entry: dict) -> bool:
+    """True for a recording Tvheadend flagged for data errors, or that has many of them (one moved to Finished by hand
+    reads "Forced OK" but still carries its count)."""
+    return "data errors" in (entry.get("status") or "").lower() or (entry.get("data_errors") or 0) >= DAMAGED_ERRORS

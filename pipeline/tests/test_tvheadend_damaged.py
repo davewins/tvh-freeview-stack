@@ -1,6 +1,6 @@
 import unittest
 
-from tvhpipeline.tvheadend import Tvheadend
+from tvhpipeline.tvheadend import Tvheadend, is_damaged
 
 
 class Stub(Tvheadend):
@@ -32,6 +32,12 @@ class DamagedRecordings(unittest.TestCase):
     def test_no_duplicates(self):
         t = Stub([self.ok, self.noisy], [self.noisy])
         self.assertEqual(len(t.finished()), 2)
+
+    def test_damage_is_recognised_even_after_the_entry_was_moved_to_finished(self):
+        self.assertTrue(is_damaged(self.noisy))
+        self.assertTrue(is_damaged({"status": "Forced OK", "data_errors": 18152}))
+        self.assertFalse(is_damaged({"status": "Completed OK", "data_errors": 335}))
+        self.assertFalse(is_damaged({}))
 
 
 if __name__ == "__main__":
