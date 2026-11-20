@@ -59,6 +59,12 @@ A conversion can run for a long time, so the container's health signal ticks fro
 - A recording is left alone until it has been unchanged for `settle_seconds`.
 - One broken recording never blocks the others.
 
+- **Recordings Tvheadend marked failed for "Too many data errors".** Poor reception while recording makes Tvheadend
+  move the recording to *Failed* even though most of the programme is in the file. With `process_damaged = true` (the
+  default) the pipeline converts these too (only when the file has content, so "Time missed" entries are ignored); how bad
+  the picture is varies from a few glitches to a mess. tvhgo shows the reason on the recording and a warning under the
+  player. Turn it off with `process_damaged = false` under `[run]`.
+
 ## Configuration
 Copy `pipeline/config.example.toml` to `pipeline/config.toml`; every value shown is the default, so the file is optional.
 Credentials and addresses come from the environment (`.env`): `TVH_URL`, `TVH_USER`, `TVH_PASS`, and for

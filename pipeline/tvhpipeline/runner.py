@@ -134,7 +134,7 @@ def _publish_lists(cfg: Config, state: State, entries: list, now: float):
 def cycle(cfg: Config, state: State, tvh: Tvheadend, max_recordings: int = 1) -> dict:
     """One pass. At most `max_recordings` recordings get heavy work per pass, so the machine is never swamped."""
     now = time.time()
-    entries = tvh.finished()
+    entries = tvh.finished(cfg.process_damaged)
     entries.sort(key=lambda e: e.get("stop", 0))
     done = 0
     for e in entries:

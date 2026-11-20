@@ -16,6 +16,19 @@ class Tvheadend:
         with self.opener.open(self.url + path, timeout=30) as r:
             return json.load(r)
 
-    def finished(self):
-        """Finished recordings (newest data first as Tvheadend returns it)."""
-        return self.get("/api/dvr/entry/grid_finished?limit=5000").get("entries", [])
+    def finished(self, include_damaged: bool = True):
+        """Finished recordings (newest data first as Tvheadend returns it). With include_damaged, also the recordings
+        Tvheadend moved to "failed" only because of "Too many data errors" (poor reception): they have a file with
+        most of the programme in it, which is worth converting. Recordings with no file ("Time missed") are not."""
+        entries = self.get("/api/dvr/entry/grid_finished?limit=5000").get("entries", [])
+        if not include_damaged:
+            return entries
+        seen = {e.get("uuid") for e in entries}
+        try:
+            failed = self.get("/api/dvr/entry/grid_failed?limit=5000").get("entries", [])
+        except Exception:
+            return entries  # a failed lookup must not stop the normal recordings
+        for e in failed:
+            if e.get("uuid") not in seen and (e.get("filesize") or 0) > 0 and "data errors" in (e.get("status") or "").lower():
+                entries.append(e)
+        return entries

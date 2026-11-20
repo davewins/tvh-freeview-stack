@@ -13,6 +13,7 @@ state_dir = "/var/lib/tvh-pipeline"
 [run]
 poll_seconds = 60        # how often Tvheadend is asked for finished recordings
 settle_seconds = 120     # a recording must have been untouched this long before it is processed
+process_damaged = true   # also convert recordings Tvheadend marked failed only for "Too many data errors" (bad reception)
 max_attempts = 5         # a failing step is retried with growing pauses (5 min, 10, 20 ...) then left, visible in `status`
 
 [steps]

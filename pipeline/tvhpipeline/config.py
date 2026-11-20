@@ -19,6 +19,7 @@ class Config:
     poll_seconds: int = 60
     settle_seconds: int = 120          # a recording must have been untouched this long before it is processed
     max_attempts: int = 5
+    process_damaged: bool = True       # also convert recordings Tvheadend marked failed for "Too many data errors"
     # steps
     strip_audio_description: bool = True
     convert_mp4: bool = True
@@ -60,6 +61,7 @@ def load(path: str | None = None) -> Config:
     c.poll_seconds = int(run.get("poll_seconds", c.poll_seconds))
     c.settle_seconds = int(run.get("settle_seconds", c.settle_seconds))
     c.max_attempts = int(run.get("max_attempts", c.max_attempts))
+    c.process_damaged = bool(run.get("process_damaged", c.process_damaged))
     for k in ("strip_audio_description", "convert_mp4", "thumbnail", "nfo", "comskip", "cleanup", "series_images"):
         setattr(c, k, bool(steps.get(k, getattr(c, k))))
     c.comskip_skip_channels = cs.get("skip_channels_regex", c.comskip_skip_channels)

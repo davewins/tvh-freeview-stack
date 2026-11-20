@@ -72,6 +72,10 @@ compose file as a backup, and check `docker logs` and the `status` output afterw
 - Pathname format needs strftime-style codes (`%Y-%m-%d %H.%M.$x`), not `$Y/$H`.
 - One tuner serves a whole multiplex. Recordings on the same mux share it; a third mux needs a free tuner. tvhgo
   warns about this.
+- A recording with a lot of damaged packets is moved to *Failed* with the status text "Too many data errors" (the
+  `status` field of the entry; `sched_status` stays `completed`; `data_errors` is the count, normally under a few hundred).
+  The file is still there. The pipeline converts these (`process_damaged`) and tvhgo warns on playback. "Time missed"
+  entries have no file and are ignored.
 - DVB-T2 (HD) reception can be marginal and appear as "locked but all packets uncorrectable": suspect RF/USB (a
   splitter, a powered hub and a longer extension fixed one install), not firmware.
 - Some USB tuners need firmware that the distribution's `linux-firmware` does not ship (e.g. Si2168 `b40` for the
