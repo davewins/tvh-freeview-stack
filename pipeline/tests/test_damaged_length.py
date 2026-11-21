@@ -21,6 +21,7 @@ class DamagedLength(unittest.TestCase):
             open(ts, "wb").write(b"x")
 
             def fake_run(cmd, total, cb):
+                self.cmd = cmd
                 open(cmd[-1], "wb").write(b"mp4")
                 return types.SimpleNamespace(returncode=0, stderr="")
 
@@ -49,6 +50,21 @@ class DamagedLength(unittest.TestCase):
         (status, _), exists = self.run_with(1442.0, 600.0, damaged=True)
         self.assertEqual(status, "failed")
         self.assertFalse(exists)
+
+    def flags(self, damaged):
+        self.run_with(1442.0, 1442.0, damaged=damaged)
+        return self.cmd[self.cmd.index("-fflags") + 1], self.cmd
+
+    def test_damaged_source_drops_corrupt_packets(self):
+        # without this a damaged HD recording made ffmpeg's memory explode and the container OOM-kill it
+        fflags, cmd = self.flags(True)
+        self.assertIn("discardcorrupt", fflags)
+        self.assertIn("-max_error_rate", cmd)
+
+    def test_clean_source_is_not_changed(self):
+        fflags, cmd = self.flags(False)
+        self.assertEqual(fflags, "+genpts")
+        self.assertNotIn("-max_error_rate", cmd)
 
 
 if __name__ == "__main__":

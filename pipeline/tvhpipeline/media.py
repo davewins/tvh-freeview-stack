@@ -14,6 +14,11 @@ class Result:
         self.returncode, self.stderr = returncode, stderr
 
 
+# per-macroblock decoder chatter: a damaged recording produces thousands of these and they bury the real error
+NOISE = ("cabac", "decoding MB", "PPS", "decode_slice", "no frame", "Last message", "concealing", "block unavailable",
+         "Reference", "reordering", "modification", "aac_latm", "mmco", "Missing reference", "out of range")
+
+
 def run_progress(cmd, total_seconds, on_progress, timeout=None):
     """Run an ffmpeg command that was given `-progress pipe:1` and report how far it got (0-100) as it runs.
     Errors (ffmpeg is started with -v error) come back in `.stderr`."""
@@ -29,7 +34,7 @@ def run_progress(cmd, total_seconds, on_progress, timeout=None):
                     continue
                 if total_seconds and us > 0:
                     on_progress(min(99.9, us / 1e6 / total_seconds * 100))
-            elif "=" not in line.split(" ")[0] and line:
+            elif "=" not in line.split(" ")[0] and line and not any(n in line for n in NOISE):
                 errors.append(line)
         p.wait(timeout=timeout)
     except Exception:

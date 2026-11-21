@@ -76,6 +76,13 @@ compose file as a backup, and check `docker logs` and the `status` output afterw
   `status` field of the entry; `sched_status` stays `completed`; `data_errors` is the count, normally under a few hundred).
   The file is still there. The pipeline converts these (`process_damaged`) and tvhgo warns on playback. "Time missed"
   entries have no file and are ignored.
+- **ffmpeg can eat all memory on a damaged HD recording.** On a 90 minute F1 recording (2,500 data errors) a stretch with
+  bogus timestamps stalled the video while audio went on; ffmpeg grew from 0.9 to 4 GB in seconds and the container's 4 GB
+  limit OOM-killed it (`ffmpeg exit -9`, `OOMKilled=true`, `dmesg` "Memory cgroup out of memory"), on every retry. The
+  log only showed decoder noise, which hid it. The fix is `-fflags +genpts+discardcorrupt -max_error_rate 1.0` for
+  recordings flagged damaged (decoding alone to `-f null` never showed it, only the encode did). To debug such a file,
+  encode a short window with `-ss N -t 120` and watch the process RSS instead of waiting for the whole file. Failed
+  retries back off (5, 10, 20 min); to retry at once delete the row from `/var/lib/tvh-pipeline/state.db` (`steps` table).
 - DVB-T2 (HD) reception can be marginal and appear as "locked but all packets uncorrectable": suspect RF/USB (a
   splitter, a powered hub and a longer extension fixed one install), not firmware.
 - **Two tuners on one USB 2.0 stick can corrupt each other.** On a Hauppauge dualHD, an HD (DVB-T2) recording was clean

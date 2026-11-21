@@ -64,6 +64,8 @@ A conversion can run for a long time, so the container's health signal ticks fro
   default) the pipeline converts these too (only when the file has content, so "Time missed" entries are ignored; one you moved to Finished by hand reads "Forced OK" but still counts as damaged if it has 1000 or more data errors); how bad
   the picture is varies from a few glitches to a mess. tvhgo shows the reason on the recording and a warning under the
   player. Because damaged data is lost, such an MP4 can be shorter than the recording's container claims; for these the length check
+  Damaged files are also read with `-fflags +discardcorrupt`: otherwise a stretch of broken timestamps can make ffmpeg's memory
+  explode and the container is OOM-killed on every retry (`ffmpeg exit -9`).
   accepts an MP4 that keeps at least 80 % of the source (every other recording must match within 2 %). Turn it off with
   `process_damaged = false` under `[run]`.
 

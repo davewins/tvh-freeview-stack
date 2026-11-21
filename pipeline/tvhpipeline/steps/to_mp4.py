@@ -31,15 +31,24 @@ def run(cfg, ts: str, out: str, damaged: bool = False):
         src = media.duration(ts)
         if src:
             vopt += ["-t", "%d" % (src + 5)]
+    fflags = "+genpts"
+    tolerant = []
+    if damaged:
+        # Drop packets the demuxer flags as corrupt. Without this a damaged HD recording (observed: 90 minute F1 qualifying,
+        # 2,500 data errors) hit a stretch with bogus timestamps where the video stalled while audio went on and ffmpeg's
+        # memory grew from 0.9 to 4 GB in seconds, getting the container OOM-killed (exit -9) on every attempt.
+        # Also do not give up when many frames fail to decode.
+        fflags += "+discardcorrupt"
+        tolerant = ["-max_error_rate", "1.0"]
     os.makedirs(os.path.dirname(out), exist_ok=True)
     part = out + ".part"  # never ends in .mp4
     _rm(part)
-    cmd = media.NICE + ["ffmpeg", "-nostdin", "-v", "error", "-y", "-progress", "pipe:1", "-nostats", "-fflags", "+genpts", "-i", ts, "-map", "0:v:0", "-map", "0:a:0"] + vopt + [
+    cmd = media.NICE + ["ffmpeg", "-nostdin", "-v", "error", "-y", "-progress", "pipe:1", "-nostats", "-fflags", fflags] + tolerant + ["-i", ts, "-map", "0:v:0", "-map", "0:a:0"] + vopt + [
         "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-sn", "-dn", "-movflags", "+faststart", "-f", "mp4", part]
     r = media.run_progress(cmd, media.duration(ts), status.progress)
     if r.returncode != 0:
         _rm(part)
-        return "failed", "ffmpeg: " + r.stderr.strip()[-200:]
+        return "failed", "ffmpeg exit %s: %s" % (r.returncode, _real_errors(r.stderr))
     d1, d2 = media.duration(ts), media.duration(part)
     if d1 and d2 and abs(d1 - d2) / d1 >= 0.02:
         # a hole at the start of the source (no data for a while) is not lost video: allow for exactly that much
@@ -55,6 +64,12 @@ def run(cfg, ts: str, out: str, damaged: bool = False):
     os.replace(part, out)
     note = " (damaged source, shorter)" if damaged and d1 and abs(d1 - d2) / d1 >= 0.02 else ""
     return "ok", "%s %.0fs -> %.0fs%s" % (codec, d1, d2, note)
+
+
+def _real_errors(stderr: str) -> str:
+    """The last few ffmpeg error lines (decoder chatter is already filtered out by media.run_progress)."""
+    keep = [l for l in stderr.splitlines() if l.strip()]
+    return " | ".join(keep[-3:])[-300:] or "no error text (only decoder noise)"
 
 
 def _rm(p):
