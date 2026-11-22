@@ -83,6 +83,12 @@ compose file as a backup, and check `docker logs` and the `status` output afterw
   recordings flagged damaged (decoding alone to `-f null` never showed it, only the encode did). To debug such a file,
   encode a short window with `-ss N -t 120` and watch the process RSS instead of waiting for the whole file. Failed
   retries back off (5, 10, 20 min); to retry at once delete the row from `/var/lib/tvh-pipeline/state.db` (`steps` table).
+- **That was not enough for a second recording** (F1 highlights, 6 GB, container timestamps jumping by years about 78 min in;
+  `ffprobe` reported 154 min for a 90 min programme). Extra for damaged HD: renumber video frames (`setpts=N/FRAME_RATE/TB`),
+  `aresample=async=1`, then cut the audio overhang after encoding by stream copy (`_trim_audio`: audio ran 6945 s against
+  5437 s of video). **Never add `-shortest`**: it queues audio while waiting for video and the OOM returns (found by running the
+  exact pipeline command with RSS logging; the same command without it peaks at 1.6 GB). The length check accepts half of
+  the source's (meaningless) length for such files. Run the real command by hand with memory logging before trusting a fix.
 - DVB-T2 (HD) reception can be marginal and appear as "locked but all packets uncorrectable": suspect RF/USB (a
   splitter, a powered hub and a longer extension fixed one install), not firmware.
 - **Two tuners on one USB 2.0 stick can corrupt each other.** On a Hauppauge dualHD, an HD (DVB-T2) recording was clean

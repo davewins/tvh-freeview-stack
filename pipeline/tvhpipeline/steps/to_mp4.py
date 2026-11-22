@@ -33,6 +33,7 @@ def run(cfg, ts: str, out: str, damaged: bool = False):
             vopt += ["-t", "%d" % (src + 5)]
     fflags = "+genpts"
     tolerant = []
+    aopt = []
     if damaged:
         # Drop packets the demuxer flags as corrupt. Without this a damaged HD recording (observed: 90 minute F1 qualifying,
         # 2,500 data errors) hit a stretch with bogus timestamps where the video stalled while audio went on and ffmpeg's
@@ -40,21 +41,38 @@ def run(cfg, ts: str, out: str, damaged: bool = False):
         # Also do not give up when many frames fail to decode.
         fflags += "+discardcorrupt"
         tolerant = ["-max_error_rate", "1.0"]
+        if codec == "h264":
+            # discardcorrupt alone was not enough for a second recording (F1 highlights, 6 GB): timestamps jumped by
+            # years mid-file, the muxer queued the audio waiting for video and memory ran away again. Number the video
+            # frames in order (ignoring the source stamps), and let audio follow its sample clock. Verified on
+            # that file: whole recording in 1.6 GB, ~90 min of video. Do NOT add -shortest: it queues audio while waiting
+            # for video and brought the OOM straight back. The audio overhang is cut off afterwards (see _trim_audio).
+            vopt[1] += ",setpts=N/FRAME_RATE/TB"
+            aopt = ["-af", "aresample=async=1:first_pts=0", "-max_muxing_queue_size", "9999"]
     os.makedirs(os.path.dirname(out), exist_ok=True)
     part = out + ".part"  # never ends in .mp4
     _rm(part)
     cmd = media.NICE + ["ffmpeg", "-nostdin", "-v", "error", "-y", "-progress", "pipe:1", "-nostats", "-fflags", fflags] + tolerant + ["-i", ts, "-map", "0:v:0", "-map", "0:a:0"] + vopt + [
-        "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-sn", "-dn", "-movflags", "+faststart", "-f", "mp4", part]
+        "-c:a", "aac", "-b:a", "192k", "-ac", "2"] + aopt + ["-sn", "-dn", "-movflags", "+faststart", "-f", "mp4", part]
     r = media.run_progress(cmd, media.duration(ts), status.progress)
     if r.returncode != 0:
         _rm(part)
         return "failed", "ffmpeg exit %s: %s" % (r.returncode, _real_errors(r.stderr))
+    if damaged and codec == "h264":
+        err = _trim_audio(part)
+        if err:
+            _rm(part)
+            return "failed", err
     d1, d2 = media.duration(ts), media.duration(part)
     if d1 and d2 and abs(d1 - d2) / d1 >= 0.02:
         # a hole at the start of the source (no data for a while) is not lost video: allow for exactly that much
         d1 -= media.leading_gap(ts)
     if damaged and d1 and d2 and d1 > 0:
         length_ok = DAMAGED_MIN_KEPT <= d2 / d1 < 1.02
+        if not length_ok and codec == "h264" and 0.5 <= d2 / d1 < 1.02:
+            # the source's own length is meaningless when its timestamps jump (it reported 154 min for a 90 min
+            # programme), so at least half of it is accepted
+            length_ok = True
     else:
         length_ok = bool(d1 and d2 and d1 > 0 and abs(d1 - d2) / d1 < 0.02)
     ok = media.count(part, "video") >= 1 and media.count(part, "audio") >= 1 and length_ok
@@ -64,6 +82,33 @@ def run(cfg, ts: str, out: str, damaged: bool = False):
     os.replace(part, out)
     note = " (damaged source, shorter)" if damaged and d1 and abs(d1 - d2) / d1 >= 0.02 else ""
     return "ok", "%s %.0fs -> %.0fs%s" % (codec, d1, d2, note)
+
+
+def _trim_audio(part: str):
+    """After a repair encode the audio can run on far past the last video frame (timestamps in the damaged source jump,
+    the video follows frame order, the audio its own clock: seen 5437 s of video, 6945 s of audio). Cut the file at the
+    end of the video, stream copy only. Returns an error text, or None."""
+    vd = ad = None
+    for st in media.streams(part):
+        try:
+            d = float(st.get("duration"))
+        except (TypeError, ValueError):
+            continue
+        if st.get("codec_type") == "video" and vd is None:
+            vd = d
+        elif st.get("codec_type") == "audio" and ad is None:
+            ad = d
+    if not vd or not ad or ad <= vd + 5:
+        return None
+    tmp = part + ".trim"
+    _rm(tmp)
+    r = media.run(media.NICE + ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", part, "-map", "0", "-c", "copy",
+                                "-t", "%.3f" % vd, "-movflags", "+faststart", "-f", "mp4", tmp])
+    if r.returncode != 0 or not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
+        _rm(tmp)
+        return "trimming audio overhang failed: %s" % _real_errors(r.stderr or "")
+    os.replace(tmp, part)
+    return None
 
 
 def _real_errors(stderr: str) -> str:

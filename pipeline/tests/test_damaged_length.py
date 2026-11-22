@@ -61,10 +61,43 @@ class DamagedLength(unittest.TestCase):
         self.assertIn("discardcorrupt", fflags)
         self.assertIn("-max_error_rate", cmd)
 
+    def test_damaged_hd_renumbers_timestamps(self):
+        # a second recording (F1 highlights) still ran away in memory with only discardcorrupt: timestamps jumped by years
+        fflags, cmd = self.flags(True)
+        self.assertIn("setpts=N/FRAME_RATE/TB", cmd[cmd.index("-vf") + 1])
+        self.assertNotIn("-shortest", cmd)  # it queues audio while waiting for video: OOM again
+
     def test_clean_source_is_not_changed(self):
         fflags, cmd = self.flags(False)
         self.assertEqual(fflags, "+genpts")
         self.assertNotIn("-max_error_rate", cmd)
+        self.assertNotIn("setpts", cmd[cmd.index("-vf") + 1])
+
+
+class TrimAudioOverhang(unittest.TestCase):
+    def test_audio_longer_than_video_is_cut_at_the_video(self):
+        import subprocess, tempfile
+        from tvhpipeline import media
+        from tvhpipeline.steps import to_mp4
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, "x.mp4")
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=black:s=64x64:r=10:d=4",
+                            "-f", "lavfi", "-i", "sine=d=15", "-c:v", "libx264", "-c:a", "aac", f], check=True)
+            self.assertGreater(media.duration(f), 14)
+            self.assertIsNone(to_mp4._trim_audio(f))
+            self.assertLess(media.duration(f), 5)
+
+    def test_matching_lengths_are_left_alone(self):
+        import subprocess, tempfile
+        from tvhpipeline import media
+        from tvhpipeline.steps import to_mp4
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, "x.mp4")
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=black:s=64x64:r=10:d=4",
+                            "-f", "lavfi", "-i", "sine=d=4", "-c:v", "libx264", "-c:a", "aac", f], check=True)
+            before = os.path.getsize(f)
+            self.assertIsNone(to_mp4._trim_audio(f))
+            self.assertEqual(os.path.getsize(f), before)
 
 
 if __name__ == "__main__":

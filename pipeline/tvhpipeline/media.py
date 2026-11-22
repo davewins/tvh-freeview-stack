@@ -53,7 +53,7 @@ def duration(path: str):
 
 def streams(path: str):
     r = run(["ffprobe", "-v", "error", "-of", "json", "-show_entries",
-             "stream=index,codec_type,codec_name,channels:stream_disposition=visual_impaired", path])
+             "stream=index,codec_type,codec_name,channels,duration:stream_disposition=visual_impaired", path])
     try:
         return json.loads(r.stdout).get("streams", [])
     except ValueError:
