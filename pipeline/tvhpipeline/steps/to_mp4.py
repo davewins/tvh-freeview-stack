@@ -21,10 +21,16 @@ def run(cfg, ts: str, out: str, damaged: bool = False):
     codec = media.first_codec(ts, "video")
     if codec is None:
         return "novideo", "audio-only recording"
+    if not damaged and codec == "h264" and media.has_timestamp_jump(ts):
+        damaged = True  # Tvheadend said "completed OK" but a corrupt packet has bogus timestamps: use the repair path
     if codec == "h264":  # HD: deinterlace only frames flagged interlaced, keep the resolution
         vopt = ["-vf", "yadif=0:-1:1", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22"] + GOP
     else:  # SD MPEG-2: deinterlace, turn anamorphic 544x576 into square-pixel 1024x576
         vopt = ["-vf", "yadif=0:-1:0,scale=1024:576:flags=lanczos,setsar=1", "-c:v", "libx264", "-preset", "medium", "-crf", "20"] + GOP
+    lead = media.start_lead(ts)
+    if lead:
+        # the video really starts `lead` s after the audio: hold the first frame so it is not shown that early
+        vopt[1] += ",tpad=start_duration=%.3f:start_mode=clone" % lead
     if damaged:
         # broken timestamps in a damaged tail can make ffmpeg pad the gap with duplicate frames for far longer than the
         # programme (observed: a 24 minute recording still encoding after 40 minutes, output growing): cap the output
@@ -42,12 +48,13 @@ def run(cfg, ts: str, out: str, damaged: bool = False):
         fflags += "+discardcorrupt"
         tolerant = ["-max_error_rate", "1.0"]
         if codec == "h264":
-            # discardcorrupt alone was not enough for a second recording (F1 highlights, 6 GB): timestamps jumped by
-            # years mid-file, the muxer queued the audio waiting for video and memory ran away again. Number the video
-            # frames in order (ignoring the source stamps), and let audio follow its sample clock. Verified on
-            # that file: whole recording in 1.6 GB, ~90 min of video. Do NOT add -shortest: it queues audio while waiting
-            # for video and brought the OOM straight back. The audio overhang is cut off afterwards (see _trim_audio).
-            vopt[1] += ",setpts=N/FRAME_RATE/TB"
+            # discardcorrupt alone was not enough for a second recording (F1 highlights, 6 GB; ITV news): ONE corrupt packet
+            # had a timestamp years off, the muxer queued the audio waiting for video and memory ran away (or the programme
+            # was cut short). Keep the real video timing (frames lost to damage must stay gaps, else the video runs ahead
+            # of the audio by the time lost: 27 s over a 27 minute news) but replace a frame whose timestamp jumps by more
+            # than 10 s with "one frame after the previous". Audio follows its own clock. Do NOT add -shortest: it queues
+            # audio while waiting for video and the OOM returns. The audio overhang is cut afterwards (see _trim_audio).
+            vopt[1] += ",setpts='if(gt(abs(PTS-PREV_INPTS),10/TB),PREV_OUTPTS+1/(FRAME_RATE*TB),PTS-STARTPTS)'"
             aopt = ["-af", "aresample=async=1:first_pts=0", "-max_muxing_queue_size", "9999"]
     os.makedirs(os.path.dirname(out), exist_ok=True)
     part = out + ".part"  # never ends in .mp4

@@ -99,3 +99,35 @@ def chapter_titles(path: str):
         return [(c.get("tags") or {}).get("title", "") for c in json.loads(r.stdout).get("chapters", [])]
     except ValueError:
         return []
+
+
+def start_lead(path: str) -> float:
+    """Seconds by which the first video frame comes after the first audio sample (0 if video is not later). ffmpeg moves
+    both streams to start at zero, which would show the video that much too early for the whole programme."""
+    def start(kind):
+        r = run(["ffprobe", "-v", "error", "-select_streams", kind + ":0", "-show_entries", "stream=start_time", "-of", "csv=p=0", path])
+        try:
+            return float(r.stdout.strip().splitlines()[0])
+        except (ValueError, IndexError):
+            return None
+    v, a = start("v"), start("a")
+    if v is None or a is None:
+        return 0.0
+    d = v - a
+    return round(d, 3) if 0.04 < d < 10 else 0.0
+
+
+def has_timestamp_jump(path: str, limit: float = 60.0) -> bool:
+    """True if the video's timestamps jump by more than `limit` seconds anywhere (one corrupt packet is enough to make
+    ffmpeg cut the programme short or run out of memory), even when Tvheadend did not call the recording damaged."""
+    r = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time", "-of", "csv=p=0", path], timeout=1800)
+    prev = None
+    for x in r.stdout.split():
+        try:
+            t = float(x.strip(","))
+        except ValueError:
+            continue
+        if prev is not None and abs(t - prev) > limit:
+            return True
+        prev = t
+    return False

@@ -61,11 +61,25 @@ class DamagedLength(unittest.TestCase):
         self.assertIn("discardcorrupt", fflags)
         self.assertIn("-max_error_rate", cmd)
 
-    def test_damaged_hd_renumbers_timestamps(self):
+    def test_damaged_hd_keeps_real_timing_but_not_a_bogus_stamp(self):
         # a second recording (F1 highlights) still ran away in memory with only discardcorrupt: timestamps jumped by years
         fflags, cmd = self.flags(True)
-        self.assertIn("setpts=N/FRAME_RATE/TB", cmd[cmd.index("-vf") + 1])
+        self.assertIn("PREV_INPTS", cmd[cmd.index("-vf") + 1])
+        self.assertNotIn("N/FRAME_RATE", cmd[cmd.index("-vf") + 1])
         self.assertNotIn("-shortest", cmd)  # it queues audio while waiting for video: OOM again
+
+    def test_late_video_is_held_not_shifted_early(self):
+        # the video of one recording started 0.73 s after its audio; ffmpeg moved it to zero: lip-sync off for the whole show
+        with mock.patch.object(to_mp4.media, "start_lead", return_value=0.728):
+            self.run_with(1442.0, 1442.0, damaged=False)
+        self.assertIn("tpad=start_duration=0.728:start_mode=clone", self.cmd[self.cmd.index("-vf") + 1])
+
+    def test_a_timestamp_jump_switches_to_the_repair_path(self):
+        with mock.patch.object(to_mp4.media, "has_timestamp_jump", return_value=True):
+            fflags, cmd = self.flags(False)
+        self.assertIn("discardcorrupt", fflags)
+        self.assertIn("PREV_INPTS", cmd[cmd.index("-vf") + 1])
+        self.assertNotIn("N/FRAME_RATE", cmd[cmd.index("-vf") + 1])
 
     def test_clean_source_is_not_changed(self):
         fflags, cmd = self.flags(False)
@@ -98,6 +112,29 @@ class TrimAudioOverhang(unittest.TestCase):
             before = os.path.getsize(f)
             self.assertIsNone(to_mp4._trim_audio(f))
             self.assertEqual(os.path.getsize(f), before)
+
+
+class StartLeadAndJumps(unittest.TestCase):
+    def _ts(self, d, name, vdelay, extra=()):
+        import subprocess
+        f = os.path.join(d, name)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-itsoffset", str(vdelay), "-f", "lavfi", "-i", "testsrc=size=64x64:rate=25:d=6",
+                        "-f", "lavfi", "-i", "sine=d=6", "-c:v", "libx264", "-c:a", "aac", "-f", "mpegts", f], check=True)
+        return f
+
+    def test_video_starting_after_audio_is_measured(self):
+        from tvhpipeline import media
+        with tempfile.TemporaryDirectory() as d:
+            self.assertAlmostEqual(media.start_lead(self._ts(d, "late.ts", 0.7)), 0.7, delta=0.15)
+            self.assertEqual(media.start_lead(self._ts(d, "same.ts", 0)), 0.0)
+
+    def test_timestamp_jump_is_detected(self):
+        from tvhpipeline import media
+        with tempfile.TemporaryDirectory() as d:
+            self.assertFalse(media.has_timestamp_jump(self._ts(d, "ok.ts", 0)))
+        with mock.patch.object(media, "run") as r:
+            r.return_value = types.SimpleNamespace(stdout="1.0\n1.04\n92461.2\n1.12\n")
+            self.assertTrue(media.has_timestamp_jump("x"))
 
 
 if __name__ == "__main__":
