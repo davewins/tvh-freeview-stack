@@ -77,7 +77,7 @@ def _attempt(state: State, cfg: Config, rec: str, step: str, fn, label: str, tit
     return status
 
 
-def process_recording(cfg: Config, state: State, entry: dict, now: float) -> bool:
+def process_recording(cfg: Config, state: State, entry: dict, now: float, on_converted=None) -> bool:
     """Bring one recording through the steps in order. Returns True if it did real work (so the caller can pace itself)."""
     ts = paths.to_local(cfg, entry.get("filename") or "")
     if not ts.endswith((".ts", ".mkv")) or not os.path.exists(ts) or os.path.getsize(ts) == 0 or not _settled(cfg, ts, now):
@@ -96,6 +96,10 @@ def process_recording(cfg: Config, state: State, entry: dict, now: float) -> boo
     if cfg.convert_mp4:
         worked |= did(_attempt(state, cfg, rec, "convert_mp4", lambda: to_mp4.run(cfg, ts, out, damaged=tvheadend.is_damaged(entry)), label, title))
     mp4_ready = os.path.exists(out) and os.path.getsize(out) > 0
+    if mp4_ready and on_converted:
+        # Jellyfin notices a new MP4 within a minute. If the .nfo (season, episode, date) is not there yet it files the
+        # episode under "Season Unknown", and thumbnail and comskip can take ten minutes. So write the .nfo right now.
+        on_converted()
     if cfg.thumbnail and mp4_ready:
         worked |= did(_attempt(state, cfg, rec, "thumbnail", lambda: thumb.run(cfg, out), label, title))
     if cfg.comskip and mp4_ready:
@@ -141,7 +145,7 @@ def cycle(cfg: Config, state: State, tvh: Tvheadend, max_recordings: int = 1) ->
     for e in entries:
         if done >= max_recordings:
             break
-        if process_recording(cfg, state, e, now):
+        if process_recording(cfg, state, e, now, (lambda: nfo.sync(cfg, entries)) if cfg.nfo else None):
             done += 1
     _publish_lists(cfg, state, entries, now)
     info = {"recordings": len(entries), "worked": done}

@@ -44,5 +44,40 @@ class Nfo(unittest.TestCase):
         self.assertEqual(nfo.sync(cfg, entries), (0, 1))  # nothing rewritten the second time
 
 
+class NfoWrittenBeforeSlowSteps(unittest.TestCase):
+    def test_nfo_exists_before_thumbnail_and_comskip_run(self):
+        # Jellyfin files a new MP4 under "Season Unknown" if its .nfo is not there yet (seen 2026-11-24: comskip took
+        # 100 s, other recordings 10 min). The runner must write the .nfo as soon as the MP4 is in place.
+        import tempfile
+        from unittest import mock
+        from tvhpipeline import runner
+        seen = {}
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "Show", "Show - 2026-11-24 13.30.mp4")
+            os.makedirs(os.path.dirname(out))
+            open(out, "wb").write(b"x")
+            nfo_path = out[:-4] + ".nfo"
+
+            def thumb_run(cfg, mp4):
+                seen["nfo_before_thumb"] = os.path.exists(nfo_path)
+                return "ok", ""
+
+            cfg = mock.Mock(strip_audio_description=False, convert_mp4=False, thumbnail=True, comskip=False)
+            state = mock.Mock()
+            state.due.return_value = True
+            state.get.return_value = None
+            state.put = mock.Mock()
+            ts = os.path.join(d, "Show", "Show - 2026-11-24 13.30.ts")
+            open(ts, "wb").write(b"x")
+            entry = {"uuid": "u", "filename": ts, "disp_title": "Show", "stop": 0}
+            with mock.patch.object(runner.paths, "to_local", return_value=ts), \
+                 mock.patch.object(runner.paths, "mp4_for", return_value=out), \
+                 mock.patch.object(runner, "_settled", return_value=True), \
+                 mock.patch.object(runner.thumb, "run", thumb_run), \
+                 mock.patch.object(runner.live_status, "begin"), mock.patch.object(runner.live_status, "end"):
+                runner.process_recording(cfg, state, entry, 0, lambda: open(nfo_path, "w").write("<nfo/>"))
+        self.assertTrue(seen.get("nfo_before_thumb"))
+
+
 if __name__ == "__main__":
     unittest.main()
